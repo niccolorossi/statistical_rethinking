@@ -1,0 +1,353 @@
+---
+title: "Statistical Rethinking"
+subtitle: Chapter Two - Practice
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r, warning=FALSE, message=FALSE}
+library(tidyverse)
+library(reshape2)
+```
+
+
+#### Medium
+
+##### Exercise 1
+
+Recall the globe tossing model from the chapter. Compute and plot the grid approximate posterior distribution for each of the following sets of observations. In each case, assume a uniform prior for $p$.
+
+1. W,W,W
+2. W,W,W,L
+3. L,W,W,L,W,W,W
+
+---
+
+1. W,W,W
+
+```{r, fig.align='center'}
+# number of data points (dividing the prior support)
+step <- 0.005
+p_grid <- seq(0, 1, step)
+prior <- rep(1, length(p_grid))
+
+N <- 3
+K <- 3
+likelihood <- dbinom(K, size=N, prob=p_grid)
+
+posterior <- prior * likelihood / (step * sum(prior * likelihood))
+
+df <- as_tibble(cbind(samples=p_grid, prior=prior, 
+                      likelihood=likelihood, posterior=posterior))
+
+df <- melt(df, id="samples")
+df %>%
+  filter(variable != 'likelihood') %>%
+  ggplot(aes(x=samples, y=value, colour=variable)) +
+       geom_point()
+```
+
+2. W,W,W,L
+
+```{r, fig.align='center'}
+# number of data points (dividing the prior support)
+step <- 0.005
+p_grid <- seq(0, 1, step)
+prior <- rep(1, length(p_grid))
+
+N <- 4
+K <- 3
+likelihood <- dbinom(K, size=N, prob=p_grid)
+
+posterior <- prior * likelihood / (step * sum(prior * likelihood))
+
+df <- as_tibble(cbind(samples=p_grid, prior=prior, 
+                      likelihood=likelihood, posterior=posterior))
+
+df <- melt(df, id="samples")
+df %>%
+  filter(variable != 'likelihood') %>%
+  ggplot(aes(x=samples, y=value, colour=variable)) +
+       geom_point()
+```
+
+3. L,W,W,L,W,W,W
+
+```{r, fig.align='center'}
+# number of data points (dividing the prior support)
+step <- 0.005
+p_grid <- seq(0, 1, step)
+prior <- rep(1, length(p_grid))
+
+N <- 7
+K <- 5
+likelihood <- dbinom(K, size=N, prob=p_grid)
+
+posterior <- prior * likelihood / (step * sum(prior * likelihood))
+
+df <- as_tibble(cbind(samples=p_grid, prior=prior, 
+                      likelihood=likelihood, posterior=posterior))
+
+df <- melt(df, id="samples")
+df %>%
+  filter(variable != 'likelihood') %>%
+  ggplot(aes(x=samples, y=value, colour=variable)) +
+       geom_point()
+```
+
+##### Exercise 2
+
+Now assume a prior for $p$ that is equal to zero when $p < 0.5$ and is a positive constant when $p \ge 0.5$. Again compute and plot the grid approximate posterior distribution for each of the sets of observations in the problem just above.
+
+---
+
+1. W,W,W
+
+```{r, fig.align='center'}
+# number of data points (dividing the prior support)
+step <- 0.005
+p_grid <- seq(0, 1, step)
+prior <- ifelse(p_grid < 0.5, 0, 2)
+
+N <- 3
+K <- 3
+likelihood <- dbinom(K, size=N, prob=p_grid)
+
+posterior <- prior * likelihood / (step * sum(prior * likelihood))
+
+df <- as_tibble(cbind(samples=p_grid, prior=prior, 
+                      likelihood=likelihood, posterior=posterior))
+
+df <- melt(df, id="samples")
+df %>%
+  filter(variable != 'likelihood') %>%
+  ggplot(aes(x=samples, y=value, colour=variable)) +
+       geom_point()
+```
+
+2. W,W,W,L
+
+```{r, fig.align='center'}
+# number of data points (dividing the prior support)
+step <- 0.005
+p_grid <- seq(0, 1, step)
+prior <- ifelse(p_grid < 0.5, 0, 2)
+
+N <- 4
+K <- 3
+likelihood <- dbinom(K, size=N, prob=p_grid)
+
+posterior <- prior * likelihood / (step * sum(prior * likelihood))
+
+df <- as_tibble(cbind(samples=p_grid, prior=prior, 
+                      likelihood=likelihood, posterior=posterior))
+
+df <- melt(df, id="samples")
+df %>%
+  filter(variable != 'likelihood') %>%
+  ggplot(aes(x=samples, y=value, colour=variable)) +
+       geom_point()
+```
+
+3. L,W,W,L,W,W,W
+
+```{r, fig.align='center'}
+# number of data points (dividing the prior support)
+step <- 0.005
+p_grid <- seq(0, 1, step)
+prior <- ifelse(p_grid < 0.5, 0, 2)
+
+N <- 7
+K <- 5
+likelihood <- dbinom(K, size=N, prob=p_grid)
+
+posterior <- prior * likelihood / (step * sum(prior * likelihood))
+
+df <- as_tibble(cbind(samples=p_grid, prior=prior, 
+                      likelihood=likelihood, posterior=posterior))
+
+df <- melt(df, id="samples")
+df %>%
+  filter(variable != 'likelihood') %>%
+  ggplot(aes(x=samples, y=value, colour=variable)) +
+       geom_point()
+```
+
+##### Exercise 3
+
+Suppose there are two globes, one for Earth and one for Mars. The Earth globe is 70% covered in water. The Mars globe is 100% land. Further suppose that one of these globes—you don’t know which—was tossed in the air and produced a “land” observation. Assume that each globe was equally likely to be tossed. Show that the posterior probability that the globe was the Earth, conditional on seeing “land” ($P(Earth|land)$), is 0.23.
+
+---
+
+I don't know which globe was tossed: therefore I can assign the following prior probabilities:
+
+- $P(Earth) = 0.5$
+- $P(Mars) = 0.5$
+
+But then a globe is tossed: thus we have the following likelihood:
+
+- $P(land | Earth) = 0.3$
+- $P(land | Mars) = 1.0$
+
+We want to know how likely it is that the Earth was tossed:
+$$P(Earth | land) \propto P(land | Earth) P(Earth)$$
+... which must be divided by a normalizing constant:
+$$P(land | Earth) Pr(Earth) + Pr(land | Mars) Pr(Mars)$$
+
+```{r}
+0.3 * 0.5 / (0.3*0.5 + 0.5)
+```
+
+##### Exercise 4
+
+Suppose you have a deck with only three cards. Each card has two sides, and each side is either black or white. One card has two black sides. The second card has one black and one white side. The third card has two white sides. Now suppose all three cards are placed in a bag and shuffled. Someone reaches into the bag and pulls out a card and places it flat on a table. A black side is shown facing up, but you don’t know the color of the side facing down. Show that the probability that the other side is also black is 2/3. Use the counting method (Section 2 of the chapter) to approach this problem. This means counting up the ways that each card could produce the observed data (a black side facing up on the table).
+
+---
+
+One card is B/B. One card is B/W. One card is W/W. 
+
+A black side is observed:
+
+- B/B could have generated the output in two ways;
+- B/W could have generated the output in one way;
+- W/W could have generated the output in zero ways;
+
+Therefore, there are three possible 'paths' and B/B represents two of them. Hence, 2/3.
+
+Using Bayes Theorem instead:
+
+- $P(W/W) = 1/3$
+- $P(W/B) = 1/3$
+- $P(B/B) = 1/3$
+
+- $P(B|W/W) = 0$
+- $P(B|B/B) = 1$
+- $P(B|B/W) = 1/2$
+
+$$P(B/B|B) \propto P(B|B/B) P(B/B)$$
+And the normalizing constant is 
+$$P(W/W) P(B|W/W) +  P(B/W) P(B|B/W) + P(B/B) P(B|B/B)$$
+Hence, 1/3 / 1/2 = 2/3.
+
+##### Exercise 5
+
+Now suppose there are four cards: B/B, B/W, W/W, and another B/B. Again suppose a card is drawn from the bag and a black side appears face up. Again calculate the probability that the other side is black.
+
+---
+
+In this case,
+
+- Two cards are B/B. One card is B/W. One card is W/W. 
+
+- B/B could have generated the output in two ways;
+- B/W could have generated the output in one way;
+- W/W could have generated the output in zero ways;
+
+Therefore, there are five possible 'paths' and B/B represents four of them. Hence, 4/5.
+
+##### Exercise 6
+
+Imagine that black ink is heavy, and so cards with black sides are heavier than cards with white sides. As a result, it’s less likely that a card with black sides is pulled from the bag. So again assume there are three cards: B/B, B/W, and W/W. After experimenting a number of times, you conclude that for every way to pull the B/B card from the bag, there are 2 ways to pull the B/W card and 3 ways to pull the W/W card. Again suppose that a card is pulled and a black side appears face up. Show that the probability the other side is black is now 0.5. Use the counting method, as before.
+
+---
+
+In this case,
+
+- One card is B/B. One card is B/W. One card is W/W. 
+
+- B/B could have generated the output in two ways;
+- B/W could have generated the output in two ways;
+- W/W could have generated the output in three ways;
+
+Therefore, there are four possible paths and B/B represents two of them -> 1/2
+
+##### Exercise 7
+
+Assume again the original card problem, with a single card showing a black side face up. Before looking at the other side, we draw another card from the bag and lay it face up on the table. The face that is shown on the new card is white. Show that the probability that the first card, the one showing a black side, has black on its other side is now 0.75. Use the counting method, if you can. Hint: Treat this like the sequence of globe tosses, counting all the ways to see each observation, for each possible first card.
+
+---
+
+In this case:
+
+- One card is B/B. One card is B/W. One card is W/W. 
+
+A card is shown: it is B.
+
+- B/B could have generated the output in two ways;
+- B/W could have generated the output in one way;
+- W/W could have generated the output in zero ways;
+
+Therefore, the paths leaving from B/B are two and one path is leaving from B/W. 
+
+Second card is shown: it is W.
+
+- B/B could have generated the output in three ways;
+- B/W could have generated the output in two ways;
+- W/W could have generated the output in one ways;
+
+6 / 8 = 0.75
+
+#### Hard
+
+##### Exercise 1
+
+Suppose there are two species of panda bear. Both are equally common in the wild and live in the same places. They look exactly alike and eat the same food, and there is yet no genetic assay capable of telling them apart. They differ however in their family sizes. Species A gives birth to twins 10% of the time, otherwise birthing a single infant. Species B births twins 20% of the time, otherwise birthing singleton infants. Assume these numbers are known with certainty, from many years of field research.
+
+Now suppose you are managing a captive panda breeding program. You have a new female panda of unknown species, and she has just given birth to twins. What is the probability that her next birth will also be twins?
+
+---
+
+$$P(twins) = P(twins|A) P(A) + P(twins|B) P(B)$$
+$$P(A) = 0.5 = P(B)$$
+$$P(twins|A) = 0.1$$
+$$P(twins|B) = 0.2$$
+$$P(A|twins) = \frac{P(twins|A) P(A)}{P(twins|A) P(A) + P(twins|B) P(B)} = 1 / 3$$
+$$P(B|twins) = \frac{P(twins|B) P(B)}{P(twins|A) P(A) + P(twins|B) P(B)} = 2 / 3$$
+$$P(twins) = P(twins|A) P(A|twins) + P(twins|B) P(B|twins) = 1/6$$
+
+##### Exercise 2
+
+Recall all the facts from the problem above. Now compute the probability that the panda we have is from species A, assuming we have observed only the first birth and that it was twins.
+
+---
+
+$$P(A|twins) = \frac{P(twins|A) P(A)}{P(twins|A) P(A) + P(twins|B) P(B)} = 1 / 3$$
+
+##### Exercise 3
+
+Continuing on from the previous problem, suppose the same panda mother has a second birth and that it is not twins, but a singleton infant. Compute the posterior probability that this panda is species A.
+
+---
+
+$$P(A) = 1/3$$
+$$P(B) = 2/3$$
+$$P(A|nt,t) = \frac{P(nt|A) P(A)}{P(nt|A) P(A) + P(nt|B) P(B)} = 0.36$$
+
+##### Exercise 4
+
+A common boast of Bayesian statisticians is that Bayesian inference makes it easy to use all of the data, even if the data are of different types.
+
+So suppose now that a veterinarian comes along who has a new genetic test that she claims can identify the species of our mother panda. But the test, like all tests, is imperfect. This is the information you have about the test: 
+
+- The probability it correctly identifies a species A panda is 0.8.
+- The probability it correctly identifies a species B panda is 0.65.
+
+The vet administers the test to your panda and tells you that the test is positive for species A. First ignore your previous information from the births and compute the posterior probability that your panda is species A. Then redo your calculation, now using the birth data as well.
+
+--- 
+
+Case 1: knowing nothing about the panda.
+
+$$P(A) = 0.5 = P(B)$$
+$$P(Result A|A) = 0.8$$
+$$P(Result B|A) = 0.2$$
+
+$$P(Result B|B) = 0.65$$
+$$P(Result A|B) = 0.35$$
+Result is A: 
+
+$$P(A|Result A) = \frac{P(Result A|A) P(A)}{P(Result A|A) P(A) + P(Result A|B) P(B)} = 0.695$$
+... given births knowledge:
+
+$$P(A|Result A) = \frac{P(Result A|A) P(A)}{P(Result A|A) P(A) + P(Result A|B) P(B)} = 0.562$$

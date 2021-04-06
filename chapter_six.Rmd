@@ -1,0 +1,97 @@
+---
+title: "Statistical Rethinking"
+subtitle: Chapter 6
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r}
+library(rethinking)
+library(tidyverse)
+library(reshape2)
+```
+
+### Practice
+
+#### Medium
+
+##### Exercise 1
+
+
+Modify the DAG on page 190 to include the variable $V$, an unobserved cause of $C$ and $Y$: 
+\[
+C \leftarrow V \rightarrow Y.
+\]
+Reanalyze the DAG. How many paths connect $X$ to $Y$? Which must be closed? Which variables should you condition on now?
+
+---
+
+```{r}
+library(dagitty)
+
+dag_6.1 <- dagitty("dag{
+  U [unobserved]
+  V [unobserved]
+  X -> Y
+  X <- U <- A -> C -> Y 
+  U -> B <- C
+  C <- V -> Y
+  }")
+
+adjustmentSets(dag_6.1, exposure="X", outcome="Y")
+```
+
+- There are four paths now!
+
+- There are two open paths that need to be closed.
+
+- it is sufficient to close A.
+
+#### Hard
+
+##### Exercise 1
+
+Use the Waffle House data to find the total causal influence of number of Waffle Houses on divorce rate. Justify your model or models with a causal graph.
+
+---
+
+```{r}
+data("WaffleDivorce")
+WaffleDivorce
+```
+
+```{r}
+library(dagitty)
+dag_6.2 <- dagitty( "dag {
+  
+  A -> D 
+  A -> M -> D
+  A <- S -> M
+  S -> W -> D}"
+  )
+adjustmentSets(dag_6.2, exposure="W", outcome="D")
+```
+
+```{r}
+d <- WaffleDivorce
+d2 <- list()
+
+d2$W <- standardize(d$WaffleHouses)
+d2$D <- standardize(d$Divorce)
+d2$S <- d$South + 1
+
+model <- quap(alist(D ~ dnorm(mu, sigma),
+                   mu <- a[S] + bW*W,
+                   a[S] ~ dnorm(0, 1),
+                   bW ~ dnorm(0, 2),
+                   sigma ~ dexp(1)), 
+             data=d2) 
+
+precis(model, depth=2)
+```
+
+
+
+
+

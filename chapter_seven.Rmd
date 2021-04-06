@@ -1,0 +1,93 @@
+---
+title: "Statistical Rethinking"
+subtitle: Chapter 7
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r}
+library(rethinking)
+library(tidyverse)
+library(reshape2)
+```
+
+### Practice
+
+#### Easy
+
+##### Exercise 1
+
+State the three motivating criteria that define information entropy. Try to express each in your own words.
+
+---
+
+1. The function needs to be continuous, there are no huge jumps in information (in average reduction of uncertainty) as a consequence of small changes in the distribution of probabilities.
+
+2. Information entropy is additive: the uncertainty over a combination of events is the sum over the uncertainty of the two events by themseleves.
+
+3. Information entropy increases as the number of alternatives increases
+
+##### Exercise 2
+
+Suppose a coin is weighted such that, when it is tossed and lands on a table, it comes up heads 70% of the time. What is the entropy of this coin?
+
+```{r}
+p <- c(0.7, 0.3)
+i <- -sum(p*log(p))
+i
+```
+
+##### Exercise 3
+
+Suppose a four-sided die is loaded such that, when tossed onto a table, it shows “1” 20%, “2” 25%, ”3” 25%, and ”4” 30% of the time. What is the entropy of this die?
+
+---
+
+```{r}
+p <- c(0.2, 0.25, 0.25, 0.3)
+i <- -sum(p*log(p))
+i
+```
+
+##### Exercise 4
+
+Suppose another four-sided die is loaded such that it never shows “4”. The other three sides show equally often. What is the entropy of this die?
+
+---
+
+```{r}
+p <- c(0.33, 0.33, 0.33)
+i <- -sum(p*log(p))
+i
+```
+
+#### Medium
+
+##### Exercise 1
+
+Write down and compare the definitions of AIC and WAIC. Which of these criteria is most general? Which assumptions are required to transform the more general criterion into a less general one?
+
+---
+
+\[
+\textrm{AIC} = - 2 (\textrm{lppd} - p)
+\]
+
+with $p$ the number of parameters.
+
+\[
+\textrm{WAIC} = - 2 (\textrm{lppd} - \sum_i \textrm{var}_{\theta}(\log \textrm{Pr}(y_i|\theta)))
+\]
+
+WAIC has a different, and more general, definition of the "penalty term". In particular, AIC's penalty term is valid only in case of approx. multivariate Normal posterior, flat/noninformative priors and large number of observations. 
+
+##### Exercise 2
+
+Explain the difference between model selection and model comparison. What information is lost under model selection?
+
+---
+
+Model selection narrowly looks at optimizing information criteria, while model comparison has a broader scope that includes verifying causal/inferential assumptions and performing a more thorough model design process.
+
+

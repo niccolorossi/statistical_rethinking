@@ -1,0 +1,294 @@
+---
+title: "Statistical Rethinking"
+subtitle: Chapter 4
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r}
+library(rethinking)
+library(tidyverse)
+library(reshape2)
+```
+
+### Practice
+
+#### Medium
+
+##### Exercise 1
+
+For the model definition below, simulate observed $y$ values from the prior (not the posterior).
+
+\[
+y_i \sim \textrm{Normal}(\mu, \sigma) \\
+\mu ∼ \textrm{Normal}(0, 10) \\
+\sigma ∼ \textrm{Exponential}(1)
+\]
+
+---
+
+```{r}
+set.seed(2971)
+N <- 10000
+sim_mu <- rnorm(n=N, mean=0, sd=10)
+sim_sigma <- rexp(n=N, rate=1)
+prior <- cbind(sim_mu, sim_sigma)
+
+y <- apply(prior, 1, rnorm, n=1)
+hist(y)
+```
+
+##### Exercise 2
+
+Translate the model just above into a \textt{quap} formula.
+
+```{r}
+#library(rethinking)
+#model <- quap(alist(y ~ dnorm(mu, sigma),
+#                    mu ~ dnorm(0, 10),
+#                    sigma ~ dexp(1)))
+```
+
+##### Exercise 3
+
+Translate the \texttt{quap} model formula below into a mathematical model definition.
+
+---
+
+\[
+y \sim \textrm{Normal}(\mu, \sigma) \\ 
+\mu = a + bx \\
+a \sim \textrm{Normal}(0, 10) \\
+b \sim \textrm{Unif}(0, 1) \\
+\sigma \sim \textrm{Exp}(1)
+\]
+
+##### Exercise 4
+
+A sample of students is measured for height each year for 3 years. After the third year, you want to fit a linear regression predicting height using year as a predictor. Write down the mathematical model definition for this regression, using any variable names and priors you choose. Be prepared to defend your choice of priors.
+
+---
+
+\[
+y_i \sim \textrm{Normal}(\mu_i, \sigma) \\ 
+\mu_i = a + b(x_i - \bar{x}) \\
+a \sim \textrm{Normal}(170, 20) \\
+b \sim \textrm{Lognormal}(0, 1) \\
+\sigma \sim \textrm{Uniform}(0, 50)
+\]
+
+##### Exercise 5
+
+Now suppose I remind you that every student got taller each year. Does this information lead you to change your choice of priors? How?
+
+---
+
+Perhaps I would put more mass on large $b$ values, less mass near zero.
+
+##### Exercise 6
+
+Now suppose I tell you that the variance among heights for students of the same age is never more than 64 cm. How does this lead you to revise your priors?
+
+---
+
+Perhaps I would change the uniform prior over $\sigma$ as \textrm{Uniform}(0, 8).
+
+#### Hard
+
+##### Exercise 1
+
+The weights listed below were recorded in the census, but heights were not recorded for these individuals. Provide predicted heights and 89% intervals for each of these individuals. 
+
+Weights: (46.95, 43.72, 64.78, 32.59, 54.63).
+
+---
+
+Building the model, using the cubic specification since there is at least one child (32.59 kg).
+
+```{r}
+library(rethinking) 
+data(Howell1)
+d <- Howell1
+
+plot(d$height ~ d$weight)
+```
+
+```{r}
+# standardize weight
+d$weight_s <- (d$weight - mean(d$weight))/sd(d$weight) 
+# use standardized weight to obtain standardized squared weight
+d$weight_s2 <- d$weight_s^2
+d$weight_s3 <- d$weight_s^3 
+m4.6 <- quap(alist(height ~ dnorm(mu, sigma),
+                   mu <- a + b1*weight_s + b2*weight_s2 + b3*weight_s3, 
+                   a ~ dnorm(178, 20),
+                   b1 ~ dlnorm(0, 1),
+                   b2 ~ dnorm(0, 10),
+                   b3 ~ dnorm(0, 10),
+                   sigma ~ dunif(0, 50)),
+             data=d)
+
+weight.seq <- c(46.95, 43.72, 64.78, 32.59, 54.63)
+weight.seq <- (weight.seq - mean(d$weight))/sd(d$weight) 
+pred_dat <- list(weight_s=weight.seq, weight_s2=weight.seq^2, weight_s3=weight.seq^3)
+
+sim.height <- sim(m4.6, data=pred_dat)
+height.PI <- apply(sim.height, 2, PI, prob=0.89)
+mean.PI <- apply(sim.height, 2, mean)
+```
+
+##### Exercise 2
+
+Select out all the rows in the \texttt{Howell1} data with ages below 18 years of age. If you do it right, you should end up with a new data frame with 192 rows in it.
+
+---
+
+```{r}
+library(rethinking)
+data("Howell1")
+d <- Howell1
+d2 <- d[d$age < 18,]
+plot(d2$height ~ d2$weight)
+```
+
+a) Fit a linear regression to these data, using \texttt{quap}. Present and interpret the estimates. For every 10 units of increase in weight, how much taller does the model predict a child gets?
+
+---
+
+(retaining the same basic assumptions regarding the priors of the previous models but changing the mean of the intercept prior)
+
+```{r}
+d <- d2
+
+# standardize weight
+d$weight_s <- (d$weight - mean(d$weight))
+
+model <- quap(alist(height ~ dnorm(mu, sigma),
+                   mu <- a + b*weight_s, 
+                   a ~ dnorm(100, 20),
+                   b ~ dlnorm(0, 10),
+                   sigma ~ dunif(0, 50)), 
+             data=d)
+
+precis(model)
+```
+10 kg increase -> 27.2 cm increase
+
+b - Plot the raw data, with height on the vertical axis and weight on the horizontal axis. Super-impose the MAP regression line and 89% interval for the mean. Also superimpose the 89% interval for predicted heights.
+
+```{r}
+weight.seq <- seq(from=0, to=45, length.out=100)
+weight.seq <- weight.seq - mean(d$weight)
+
+pred_dat <- list(weight_s=weight.seq)
+mu <- link(model, data=pred_dat)
+mu.mean <- apply(mu, 2, mean)
+mu.PI <- apply(mu, 2, PI, prob=0.89)
+sim.height <- sim(model, data=pred_dat)
+height.PI <- apply(sim.height, 2, PI, prob=0.89)
+
+plot(height ~ weight_s, d, col=col.alpha(rangi2,0.5)) 
+lines(weight.seq, mu.mean)
+shade(mu.PI, weight.seq)
+shade(height.PI, weight.seq)
+```
+
+The assumption of the mean $\mu_i$ as a linear function of weights is ill-conceived; secondly, it could very well be that the estimated standard deviation is a bit too high (but that is probably a consequence of the first mistake).
+
+##### Exercise 3
+
+Suppose a colleague of yours, who works on allometry, glances at the practice problems just above. Your colleague exclaims, “That’s silly. Everyone knows that it’s only the \textit{logarithm} of body weight that scales with height!” Let’s take your colleague’s advice and see what happens.
+
+a - Model the relationship between height (cm) and the natural logarithm of weight (log-kg). Use the entire \texttt{Howell1} data frame, all 544 rows, adults and non-adults. Fit this model, using quadratic approximation:
+
+\[
+h_i \sim \textrm{Normal}(\mu_i, \sigma) \\
+\mu_i = \alpha + \beta \log(w_i) \\
+\alpha \sim \textrm{Normal}(178, 20) \\
+\beta \sim \textrm{Lognormal}(0, 1) \\ 
+\sigma \sim \textrm{Uniform}(0, 50)
+\]
+
+where $h_i$ is the height of individual $i$ and $w_i$ is the weight (in kg) of individual $i$. The function for computing a natural log in R is just log. Can you interpret the resulting estimates?
+
+```{r}
+library(rethinking)
+data("Howell1")
+d <- Howell1
+plot(d$height ~ d$weight)
+```
+
+```{r}
+model <- quap(alist(height ~ dnorm(mu, sigma),
+                   mu <- a + b*log(weight), 
+                   a ~ dnorm(178, 20),
+                   b ~ dlnorm(0, 1),
+                   sigma ~ dunif(0, 50)), 
+             data=d)
+
+precis(model)
+```
+
+Increasing of a factor $e$ in weight -> increasing 46.82 cm in height.
+
+b - Plotting usual quantities:
+
+```{r}
+weight.seq <- seq(from=0, to=65, length.out=100)
+
+pred_dat <- list(weight=weight.seq)
+mu <- link(model, data=pred_dat)
+mu.mean <- apply(mu, 2, mean)
+mu.PI <- apply(mu, 2, PI, prob=0.97)
+sim.height <- sim(model, data=pred_dat)
+height.PI <- apply(sim.height, 2, PI, prob=0.97)
+
+plot(height ~ weight, data=Howell1, col=col.alpha(rangi2,0.4))
+lines(weight.seq, mu.mean)
+shade(mu.PI, weight.seq)
+shade(height.PI, weight.seq)
+```
+
+##### Exercise 5
+
+Plot the prior predictive distribution for the polynomial regression model in the chapter. You can modify the code that plots the linear regression prior predictive distribution. Can you modify the prior distributions of $\alpha$, $\beta_1$, and $\beta_2$ so that the prior predictions stay within the biologically reasonable outcome space? That is to say: Do not try to fit the data by hand. But do try to keep the curves consistent with what you know about height and weight, before seeing these exact data.
+
+---
+
+```{r}
+library(rethinking)
+data("Howell1")
+d <- Howell1
+```
+
+
+```{r}
+N <- 100
+
+set.seed(2971)
+beta_2 <- rnorm(n=N, mean=-10, sd=10)
+beta_1 <- rnorm(n=N, mean=40, sd=10)
+alpha <- rnorm(n=N, mean=110, sd=10)
+
+xbar <- mean(d$weight)
+xsigma <- sd(d$weight)
+
+plot(NULL, 
+     xlim=range((d$weight-xbar)/xsigma), 
+     ylim=c(-100,400), 
+     xlab="weight", 
+     ylab="height")
+abline(h=0, lty=2)
+abline(h=272, lty=1, lwd=0.5)
+
+for (i in 1:N) 
+  curve(alpha[i]+beta_1[i]*(x)/xsigma+beta_2[i]*(x)**2,
+        from=min((d$weight-xbar)/xsigma), 
+        to=max((d$weight-xbar)/xsigma), 
+        add=TRUE, 
+        col=col.alpha("black",0.2))
+
+```
+
+

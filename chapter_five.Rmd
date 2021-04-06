@@ -1,0 +1,465 @@
+---
+title: "Statistical Rethinking"
+subtitle: Chapter 5
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r}
+library(rethinking)
+library(tidyverse)
+library(reshape2)
+```
+
+### Practice
+
+#### Medium
+
+##### Exercise 1
+
+Invent your own example of a spurious correlation. An outcome variable should be correlated with both predictor variables. But when both predictors are entered in the same model, the correlation between the outcome and one of the predictors should mostly vanish (or at least be greatly reduced).
+
+---
+
+```{r}
+set.seed(89)
+
+N <- 100
+
+X <- rnorm(n=N)
+m1 <- 3
+m2 <- 4
+Y <- m1*X + rnorm(n=N)
+Z <- m2*X + rnorm(n=N) 
+
+sd(X)
+sd(Y)
+sd(Z)
+
+cor(X,Y)
+cor(X,Z)
+cor(Z,Y)
+```
+
+```{r}
+d <- data.frame(X=X, Z=Z, Y=Y)
+
+model_s1 <- quap(alist(Y ~ dnorm(mu, sigma),
+                       mu <- a + b*X,
+                       a ~ dnorm(0, 1), 
+                       b ~ dnorm(0, 1), 
+                       sigma ~ dexp(1)), 
+                 data=d)
+
+precis(model_s1)
+
+model_s2 <- quap(alist(Y ~ dnorm(mu, sigma),
+                       mu <- a + b*Z,
+                       a ~ dnorm(0, 1), 
+                       b ~ dnorm(0, 1), 
+                       sigma ~ dexp(1)), 
+                 data=d)
+
+precis(model_s2)
+
+model_m <- quap(alist(Y ~ dnorm(mu, sigma),
+                       mu <- a + bz*Z + bx*X,
+                       a ~ dnorm(0, 1), 
+                       bx ~ dnorm(0, 1), 
+                       bz ~ dnorm(0, 1), 
+                       sigma ~ dexp(1)), 
+                 data=d)
+
+precis(model_m)
+```
+
+##### Exercise 2
+
+Invent your own example of a masked relationship. An outcome variable should be correlated with both predictor variables, but in opposite directions. And the two predictor variables should be correlated with one another.
+
+---
+
+```{r}
+set.seed(89)
+
+N <- 100
+
+U <- rnorm(n=N)
+m1 <- 2
+
+X <- m1*U + rnorm(n=N)
+Z <- m1*U + rnorm(n=N)
+Y <- X-Z + rnorm(n=N, sd=3)
+
+sd(X)
+sd(Y)
+sd(Z)
+
+cor(X,Y)
+cor(X,Z)
+cor(Z,Y)
+```
+
+```{r}
+d <- data.frame(X=X, Z=Z, Y=Y)
+
+model_s1 <- quap(alist(Y ~ dnorm(mu, sigma),
+                       mu <- a + b*X,
+                       a ~ dnorm(0, 1), 
+                       b ~ dnorm(0, 1), 
+                       sigma ~ dexp(1)), 
+                 data=d)
+
+precis(model_s1)
+
+model_s2 <- quap(alist(Y ~ dnorm(mu, sigma),
+                       mu <- a + b*Z,
+                       a ~ dnorm(0, 1), 
+                       b ~ dnorm(0, 1), 
+                       sigma ~ dexp(1)), 
+                 data=d)
+
+precis(model_s2)
+
+model_m <- quap(alist(Y ~ dnorm(mu, sigma),
+                       mu <- a + bz*Z + bx*X,
+                       a ~ dnorm(0, 1), 
+                       bx ~ dnorm(0, 1), 
+                       bz ~ dnorm(0, 1), 
+                       sigma ~ dexp(1)), 
+                 data=d)
+
+precis(model_m)
+```
+
+##### Exercise 3
+
+It is sometimes observed that the best predictor of fire risk is the presence of firefighters — states and localities with many firefighters also have more fires. Presumably firefighters do not cause fires. Nevertheless, this is not a spurious correlation. Instead fires cause firefighters. Consider the same reversal of causal inference in the context of the divorce and marriage data. How might a high divorce rate cause a higher marriage rate? Can you think of a way to evaluate this relationship, using multiple regression?
+
+---
+
+A high divorce rate could be associated with both an increased median age of marriage age and higher marriage rates. That is, if divorced individuals actually marry again. That would translate into a DAG similar as the one from before, but with arrows coming out of the divorce rate and A influencing M as well. So, given D, A influences M; given A, D influences M. Multiple regression shows association with both predictors. That is, again, if pepole marry for a second time.
+
+##### Exercise 4
+
+In the divorce data, States with high numbers of Mormons (members of The Church of Jesus Christ of Latter-day Saints, LDS) have much lower divorce rates than the regression models expected. Find a list of LDS population by State and use those numbers as a predictor variable, predicting divorce rate using marriage rate, median age at marriage, and percent LDS population (possibly standardized). You may want to consider transformations of the raw percent LDS variable.
+
+---
+
+```{r}
+library(rethinking)
+
+data(WaffleDivorce) 
+d <- list()
+d$A <- standardize(WaffleDivorce$MedianAgeMarriage)
+d$D <- standardize(WaffleDivorce$Divorce)
+d$M <- standardize(WaffleDivorce$Marriage)
+# source: wikipedia
+d$L <- standardize(log10(c(0.77, 4.58, 6.00, 1.07, 1.91, 2.61, 0.45, 0.58, 0.45, 0.75,
+                     0.82, 5.30, 25.86, 0.45, 0.68, 0.90, 1.32, 0.80, 0.64, 0.82,
+                     0.72, 0.41, 0.45, 0.59, 0.73, 1.18, 4.73, 1.30, 0.65, 0.38,
+                     3.31, 0.43, 0.85, 1.52, 0.54, 1.24, 3.64, 0.41, 0.40, 0.8,
+                     1.20, 0.77, 1.25, 66.32, 0.74, 1.13, 3.80, 0.96, 0.47, 11.70)))
+```
+
+```{r}
+model <- quap(alist(D ~ dnorm(mu, sigma),
+                     mu <- a + bM*M + bA*A + bL*L, 
+                     a ~ dnorm(0, 0.2),
+                     bM ~ dnorm(0, 0.5), 
+                     bA ~ dnorm(0, 0.5),
+                     bL ~ dnorm(0, 0.5),
+                     sigma ~ dexp(1)),
+               data = d)
+
+precis(model)
+```
+
+---
+
+##### Exercise 5
+
+One way to reason through multiple causation hypotheses is to imagine detailed mechanisms through which predictor variables may influence outcomes. For example, it is sometimes argued that the price of gasoline (predictor variable) is positively associated with lower obesity rates (outcome variable). However, there are at least two important mechanisms by which the price of gas could reduce obesity. First, it could lead to less driving and therefore more exercise. Second, it could lead to less driving, which leads to less eating out, which leads to less consumption of huge restaurant meals. Can you outline one or more multiple regressions that address these two mechanisms? Assume you can have any predictor data you need.
+
+---
+
+Oil up -> less driving -> more exercise -> Less obesity
+Oil up -> less driving -> less restaurants -> less expensive meals -> Less obesity
+
+1. exercise and meals are conditionally independent given oil price 
+2. model with exercise rates and exp meals number -> high negative and positive associations with obesity rates
+3. introducing restaurants: decreased meals effect
+4. introducing less driving: less effect for all of them
+5. introducing oil price... less effect.
+
+#### Hard
+
+All three exercises below use the same data, \texttt{data(foxes)} (part of \texttt{rethinking}). The urban fox (\textit{Vulpes vulpes}) is a successful exploiter of human habitat. Since urban foxes move in packs and defend territories, data on habitat quality and population density is also included. The data frame has five columns:
+
+1. \texttt{group}: Number of the social group the individual fox belongs to;
+2. \texttt{avgfood}: The average amount of food available in the territory;
+3. \texttt{groupsize}: The number of foxes in the social group;
+4. \texttt{area}: Size of the territory;
+5. \texttt{weight}: Body weight of the individual fox.
+
+##### Exercise 1
+
+Fit two bivariate Gaussian regressions, using \texttt{quap}:
+
+1. \texttt{weight} as a linear function of territory size (\texttt{area});
+2. \texttt{weight} as a linear function of \texttt{groupsize}.
+
+Plot the results of these regressions, displaying the MAP regression line and the 95% interval of the mean. Is either variable important for predicting fox body weight?
+
+---
+
+```{r}
+data(foxes)
+
+precis(foxes)
+```
+
+```{r}
+library(ggplot2)
+pairs(foxes[,c(2,3,4,5)])
+```
+
+First fit:
+
+```{r}
+d <- list()
+d$W <- standardize(foxes$weight)
+d$A <- standardize(foxes$area)
+d$G <- standardize(foxes$groupsize)
+```
+
+(not important)
+
+```{r}
+model_1 <- quap(alist(W ~ dnorm(mu, sigma),
+                     mu <- a + bA*A, 
+                     a ~ dnorm(0, 0.2),
+                     bA ~ dnorm(0, 0.5),
+                     sigma ~ dexp(1)),
+               data = d)
+
+precis(model_1)
+
+xseq <- seq(from=min(d$A)-0.15, to=max(d$A)+0.15, length.out=30) 
+mu <- link(model_1, data=list(A=xseq))
+mu_mean <- apply(mu, 2, mean)
+mu_PI <- apply(mu, 2, PI)
+plot(W ~ A, data=d) 
+lines(xseq, mu_mean, lwd=2) 
+shade(mu_PI, xseq)
+```
+
+(maybe it is important, but predictions show higher uncertainty when there are few observations...)
+
+```{r}
+model_2 <- quap(alist(W ~ dnorm(mu, sigma),
+                     mu <- a + bG*G, 
+                     a ~ dnorm(0, 0.2),
+                     bG ~ dnorm(0, 0.5),
+                     sigma ~ dexp(1)),
+               data = d)
+
+precis(model_2)
+
+xseq <- seq(from=min(d$G)-0.15, to=max(d$G)+0.15, length.out=30) 
+mu <- link(model_2, data=list(G=xseq))
+mu_mean <- apply(mu, 2, mean)
+mu_PI <- apply(mu, 2, PI)
+plot(W ~ G, data=d) 
+lines(xseq, mu_mean, lwd=2) 
+shade(mu_PI, xseq)
+```
+
+##### Exercise 2
+
+Now fit a multiple linear regression with \texttt{weight} as the outcome and both \texttt{area} and \texttt{groupsize} as predictor variables. Plot the predictions of the model for each predictor, holding the other predictor constant at its mean. What does this model say about the importance of each variable? Why do you get different results than you got in the exercise just above?
+
+---
+
+```{r}
+model_3 <- quap(alist(W ~ dnorm(mu, sigma),
+                     mu <- a + bG*G + bA*A, 
+                     a ~ dnorm(0, 0.2),
+                     bG ~ dnorm(0, 0.5),
+                     bA ~ dnorm(0, 0.5),
+                     sigma ~ dexp(1)),
+               data = d)
+
+precis(model_3)
+
+xseq <- seq(from=min(d$G)-0.15, to=max(d$G)+0.15, length.out=30) 
+mu <- link(model_3, data=list(G=xseq, A=0))
+mu_mean <- apply(mu, 2, mean)
+mu_PI <- apply(mu, 2, PI)
+plot(W ~ G, data=d) 
+lines(xseq, mu_mean, lwd=2) 
+shade(mu_PI, xseq)
+
+xseq <- seq(from=min(d$A)-0.15, to=max(d$A)+0.15, length.out=30) 
+mu <- link(model_3, data=list(A=xseq, G=0))
+mu_mean <- apply(mu, 2, mean)
+mu_PI <- apply(mu, 2, PI)
+plot(W ~ A, data=d) 
+lines(xseq, mu_mean, lwd=2) 
+shade(mu_PI, xseq)
+```
+
+According to this model, for fixed values of A G is negatively associated with W, and for fixed values of G A is positively associated with W. The two variables are positively associated, so their effects cancel out in the bivariate models (increased A leads to increased G and vice-versa and their opposing effects tend to average out). So, both G and A have an influence on W which is consistent with different causal mechanisms at the origin of this phenomenon.
+
+##### Exercise 3
+
+Finally, consider the \texttt{avgfood} variable. Fit two more multiple regressions: 
+
+1. \texttt{weight} as an additive function of \texttt{avgfood} and \texttt{groupsize}; 
+2. \texttt{weight} as an additive function of all three variables, \texttt{avgfood} and \texttt{groupsize} and \texttt{area}. 
+
+Compare the results of these models to the previous models you’ve fit, in the first two exercises. 
+
+a. Is \texttt{avgfood} or \texttt{area} a better predictor of \texttt{weight}? If you had to choose one or the other to include in a model, which would it be? Support your assessment with any tables or plots you choose. 
+b. When both \texttt{avgfood} or \texttt{area} are in the same model, their effects are reduced (closer to zero) and their standard errors are larger than when they are included in separate models. Can you explain this result?
+
+---
+
+first task
+
+```{r}
+d$F <- standardize(foxes$avgfood)
+
+model_1 <- quap(alist(W ~ dnorm(mu, sigma),
+                     mu <- a + bF*F + bG*G, 
+                     a ~ dnorm(0, 0.2),
+                     bG ~ dnorm(0, 0.5),
+                     bF ~ dnorm(0, 0.5),
+                     sigma ~ dexp(1)),
+               data = d)
+
+precis(model_1)
+
+# not hard to interpret
+```
+
+avg food seems to be a better predictor than area if inserted in a model like this: in fact it has a more defined causal mechanism to weight, for sure, and it is merely correlated to area (i guess). 
+
+I think area influences both food and size (separately) and then both have effect on weight. actually food could be influencing size as well... anyways if I had to pick 2 of these 3, food and size convey the most info.
+
+---
+
+check for area -> food -> weight (not super strong evidence but is is reasonable to suggest that food has some independence ie that different territories have different food densities or stl)
+
+```{r}
+model_a <- quap(alist(F ~ dnorm(mu, sigma),
+                     mu <- a + bA*A, 
+                     a ~ dnorm(0, 0.2),
+                     bA ~ dnorm(0, 0.5),
+                     sigma ~ dexp(1)),
+               data = d)
+
+precis(model_a)
+
+mu <- link(model_a)
+mu_mean <- apply(mu, 2, mean) 
+mu_resid <- d$F - mu_mean
+
+d$RA <- standardize(mu_resid)
+
+model_a2 <- quap(alist(W ~ dnorm(mu, sigma),
+                     mu <- a + bRA*RA, 
+                     a ~ dnorm(0, 0.2),
+                     bRA ~ dnorm(0, 0.5),
+                     sigma ~ dexp(1)),
+               data = d)
+
+precis(model_a2)
+```
+
+check for area -> size -> weight (good)
+
+```{r}
+model_a <- quap(alist(G ~ dnorm(mu, sigma),
+                     mu <- a + bA*A, 
+                     a ~ dnorm(0, 0.2),
+                     bA ~ dnorm(0, 0.5),
+                     sigma ~ dexp(1)),
+               data = d)
+
+precis(model_a)
+
+mu <- link(model_a)
+mu_mean <- apply(mu, 2, mean) 
+mu_resid <- d$G - mu_mean
+
+d$RA <- standardize(mu_resid)
+
+model_a2 <- quap(alist(W ~ dnorm(mu, sigma),
+                     mu <- a + bRA*RA, 
+                     a ~ dnorm(0, 0.2),
+                     bRA ~ dnorm(0, 0.5),
+                     sigma ~ dexp(1)),
+               data = d)
+
+precis(model_a2)
+```
+
+check for area -> size -> food -> weight (little evidence of this)
+
+```{r}
+model_a <- quap(alist(G ~ dnorm(mu, sigma),
+                     mu <- a + bA*A, 
+                     a ~ dnorm(0, 0.2),
+                     bA ~ dnorm(0, 0.5),
+                     sigma ~ dexp(1)),
+               data = d)
+
+precis(model_a)
+
+mu <- link(model_a)
+mu_mean <- apply(mu, 2, mean) 
+mu_resid <- d$G - mu_mean
+
+d$RA <- standardize(mu_resid)
+
+model_a2 <- quap(alist(F ~ dnorm(mu, sigma),
+                     mu <- a + bRA*RA, 
+                     a ~ dnorm(0, 0.2),
+                     bRA ~ dnorm(0, 0.5),
+                     sigma ~ dexp(1)),
+               data = d)
+
+mu <- link(model_a2)
+mu_mean <- apply(mu, 2, mean) 
+mu_resid <- d$F - mu_mean
+
+d$RA <- standardize(mu_resid)
+
+model_a3 <- quap(alist(W ~ dnorm(mu, sigma),
+                     mu <- a + bRA*RA, 
+                     a ~ dnorm(0, 0.2),
+                     bRA ~ dnorm(0, 0.5),
+                     sigma ~ dexp(1)),
+               data = d)
+
+precis(model_a3)
+```
+
+---
+
+```{r}
+model_2 <- quap(alist(W ~ dnorm(mu, sigma),
+                     mu <- a + bF*F + bG*G+ bA*A, 
+                     a ~ dnorm(0, 0.2),
+                     bG ~ dnorm(0, 0.5),
+                     bF ~ dnorm(0, 0.5),
+                     bA ~ dnorm(0, 0.5),
+                     sigma ~ dexp(1)),
+               data = d)
+
+precis(model_2)
+
+# groupsize always negative, avg food and area split their effect (more area -> more food and vice-versa)
+```
