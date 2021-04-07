@@ -90,4 +90,93 @@ Explain the difference between model selection and model comparison. What inform
 
 Model selection narrowly looks at optimizing information criteria, while model comparison has a broader scope that includes verifying causal/inferential assumptions and performing a more thorough model design process.
 
+###### Exercise 3
+
+When comparing models with an information criterion, why must all models be fit to exactly the same observations? What would happen to the information criterion values, if the models were fit to different numbers of observations? Perform some experiments, if you are not sure.
+
+---
+
+All information criteria attempt to esimate the out-of-sample deviance of the model by first computing the log pointwise predictive density (lppd) of the in-sample data points. Different points have different lppd's and therefore it does not make sense to compare them. Moreover, a higher (or lower) number of points would alter the "scale" of the values computed.
+
+###### Exercise 4
+
+What happens to the effective number of parameters, as measured by PSIS or WAIC, as a prior becomes more concentrated? Why? Perform some experiments, if you are not sure.
+
+---
+
+- In WAIC the "effective number of parameters" (the penalty term) is the sum of the variances of the pointwise predictive distributions: these are likely to be smaller if the prior is more concentrated. This is coherent with the fact that tighter priors are useful to avoid overfitting, since the meaning of the penalty is to signal exactly this.
+
+- In PSIS the "effective number of parameters" is the difference between the estimated lppd and the estimated lppd computed with PSIS. Tighter priors, I guess, reduce the importance of the single samples for the majority of the observations, which in turn leads to the PSIS estimate being more similar to the "regular" estimate.
+
+(testing on models from previous chapter)
+
+```{r}
+set.seed(71)
+# number of plants 
+N <- 100
+# simulate initial heights
+h0 <- rnorm(N, 10, 2)
+# assign treatments and simulate fungus and growth 
+treatment <- rep(0:1, each=N/2)
+fungus <- rbinom(N, size=1, prob=0.5 - treatment*0.4) 
+h1 <- h0 + rnorm(N, 5 - 3*fungus)
+# compose a clean data frame
+d <- data.frame(h0=h0, h1=h1, treatment=treatment, fungus=fungus) 
+precis(d)
+```
+
+```{r}
+m6.8.1 <- quap(alist(h1 ~ dnorm(mu, sigma), 
+                   mu <- h0 * p, 
+                   p <- a + bt*treatment,
+                   a ~ dlnorm(0, 0.2), 
+                   bt ~ dnorm(0, 0.5), 
+                   sigma ~ dexp(1)),
+             data=d) 
+
+m6.8.2 <- quap(alist(h1 ~ dnorm(mu, sigma), 
+                   mu <- h0 * p, 
+                   p <- a + bt*treatment,
+                   a ~ dlnorm(0, 1.0), 
+                   bt ~ dnorm(0, 1.0), 
+                   sigma ~ dexp(1)),
+             data=d) 
+
+m6.8.3 <- quap(alist(h1 ~ dnorm(mu, sigma), 
+                   mu <- h0 * p, 
+                   p <- a + bt*treatment,
+                   a ~ dlnorm(0, 0.01), 
+                   bt ~ dnorm(0, 0.05), 
+                   sigma ~ dexp(1)),
+             data=d) 
+
+compare(m6.8.1, m6.8.2, m6.8.3)
+compare(m6.8.1, m6.8.2, m6.8.3, func=PSIS)
+```
+
+Validated!
+
+##### Exercise 5
+
+Provide an informal explanation of why informative priors reduce overfitting.
+
+---
+
+Informative priors exclude impossible or improbable relationships between the response variable and the predictor(s). Therefore they are less likely to believe in outliers and to modify the fit accordingly.
+
+###### Exercise 6
+
+Provide an informal explanation of why overly informative priors result in underfitting.
+
+---
+
+If the prior becomes too informative however, the posterior will be dominated by the prior and the likelihood won't have that much of an influence. Therefore the resulting relationships will be overly biased according to the values on which the priors are centered.
+
+#### Hard
+
+###### Exercise 1
+
+
+
+
 

@@ -1780,6 +1780,94 @@ i</code></pre>
 <p>Explain the difference between model selection and model comparison. What information is lost under model selection?</p>
 <hr />
 <p>Model selection narrowly looks at optimizing information criteria, while model comparison has a broader scope that includes verifying causal/inferential assumptions and performing a more thorough model design process.</p>
+<div id="exercise-3-1" class="section level6">
+<h6>Exercise 3</h6>
+<p>When comparing models with an information criterion, why must all models be fit to exactly the same observations? What would happen to the information criterion values, if the models were fit to different numbers of observations? Perform some experiments, if you are not sure.</p>
+<hr />
+<p>All information criteria attempt to esimate the out-of-sample deviance of the model by first computing the log pointwise predictive density (lppd) of the in-sample data points. Different points have different lppd’s and therefore it does not make sense to compare them. Moreover, a higher (or lower) number of points would alter the “scale” of the values computed.</p>
+</div>
+<div id="exercise-4-1" class="section level6">
+<h6>Exercise 4</h6>
+<p>What happens to the effective number of parameters, as measured by PSIS or WAIC, as a prior becomes more concentrated? Why? Perform some experiments, if you are not sure.</p>
+<hr />
+<ul>
+<li><p>In WAIC the “effective number of parameters” (the penalty term) is the sum of the variances of the pointwise predictive distributions: these are likely to be smaller if the prior is more concentrated. This is coherent with the fact that tighter priors are useful to avoid overfitting, since the meaning of the penalty is to signal exactly this.</p></li>
+<li><p>In PSIS the “effective number of parameters” is the difference between the estimated lppd and the estimated lppd computed with PSIS. Tighter priors, I guess, reduce the importance of the single samples for the majority of the observations, which in turn leads to the PSIS estimate being more similar to the “regular” estimate.</p></li>
+</ul>
+<p>(testing on models from previous chapter)</p>
+<pre class="r"><code>set.seed(71)
+# number of plants 
+N &lt;- 100
+# simulate initial heights
+h0 &lt;- rnorm(N, 10, 2)
+# assign treatments and simulate fungus and growth 
+treatment &lt;- rep(0:1, each=N/2)
+fungus &lt;- rbinom(N, size=1, prob=0.5 - treatment*0.4) 
+h1 &lt;- h0 + rnorm(N, 5 - 3*fungus)
+# compose a clean data frame
+d &lt;- data.frame(h0=h0, h1=h1, treatment=treatment, fungus=fungus) 
+precis(d)</code></pre>
+<div data-pagedtable="false">
+<script data-pagedtable-source type="application/json">
+{"columns":[{"label":[""],"name":["_rn_"],"type":[""],"align":["left"]},{"label":["mean"],"name":[1],"type":["dbl"],"align":["right"]},{"label":["sd"],"name":[2],"type":["dbl"],"align":["right"]},{"label":["5.5%"],"name":[3],"type":["dbl"],"align":["right"]},{"label":["94.5%"],"name":[4],"type":["dbl"],"align":["right"]},{"label":["histogram"],"name":[5],"type":["chr"],"align":["left"]}],"data":[{"1":"9.95978","2":"2.1011623","3":"6.570328","4":"13.07874","5":"▁▂▂▂▇▃▂▃▁▁▁▁","_rn_":"h0"},{"1":"14.39920","2":"2.6880870","3":"10.618002","4":"17.93369","5":"▁▁▃▇▇▇▁▁","_rn_":"h1"},{"1":"0.50000","2":"0.5025189","3":"0.000000","4":"1.00000","5":"▇▁▁▁▁▁▁▁▁▇","_rn_":"treatment"},{"1":"0.23000","2":"0.4229526","3":"0.000000","4":"1.00000","5":"▇▁▁▁▁▁▁▁▁▂","_rn_":"fungus"}],"options":{"columns":{"min":{},"max":[10]},"rows":{"min":[10],"max":[10]},"pages":{}}}
+  </script>
+</div>
+<pre class="r"><code>m6.8.1 &lt;- quap(alist(h1 ~ dnorm(mu, sigma), 
+                   mu &lt;- h0 * p, 
+                   p &lt;- a + bt*treatment,
+                   a ~ dlnorm(0, 0.2), 
+                   bt ~ dnorm(0, 0.5), 
+                   sigma ~ dexp(1)),
+             data=d) 
+
+m6.8.2 &lt;- quap(alist(h1 ~ dnorm(mu, sigma), 
+                   mu &lt;- h0 * p, 
+                   p &lt;- a + bt*treatment,
+                   a ~ dlnorm(0, 1.0), 
+                   bt ~ dnorm(0, 1.0), 
+                   sigma ~ dexp(1)),
+             data=d) 
+
+m6.8.3 &lt;- quap(alist(h1 ~ dnorm(mu, sigma), 
+                   mu &lt;- h0 * p, 
+                   p &lt;- a + bt*treatment,
+                   a ~ dlnorm(0, 0.01), 
+                   bt ~ dnorm(0, 0.05), 
+                   sigma ~ dexp(1)),
+             data=d) 
+
+compare(m6.8.1, m6.8.2, m6.8.3)</code></pre>
+<div data-pagedtable="false">
+<script data-pagedtable-source type="application/json">
+{"columns":[{"label":[""],"name":["_rn_"],"type":[""],"align":["left"]},{"label":["WAIC"],"name":[1],"type":["dbl"],"align":["right"]},{"label":["SE"],"name":[2],"type":["dbl"],"align":["right"]},{"label":["dWAIC"],"name":[3],"type":["dbl"],"align":["right"]},{"label":["dSE"],"name":[4],"type":["dbl"],"align":["right"]},{"label":["pWAIC"],"name":[5],"type":["dbl"],"align":["right"]},{"label":["weight"],"name":[6],"type":["dbl"],"align":["right"]}],"data":[{"1":"403.0096","2":"11.307872","3":"0.0000000","4":"NA","5":"2.770514","6":"5.032560e-01","_rn_":"m6.8.1"},{"1":"403.0356","2":"11.262466","3":"0.0260487","4":"0.1783124","5":"2.782963","6":"4.967440e-01","_rn_":"m6.8.2"},{"1":"529.0957","2":"9.502234","3":"126.0861449","4":"13.2405348","5":"1.086661","6":"2.101505e-28","_rn_":"m6.8.3"}],"options":{"columns":{"min":{},"max":[10]},"rows":{"min":[10],"max":[10]},"pages":{}}}
+  </script>
+</div>
+<pre class="r"><code>compare(m6.8.1, m6.8.2, m6.8.3, func=PSIS)</code></pre>
+<div data-pagedtable="false">
+<script data-pagedtable-source type="application/json">
+{"columns":[{"label":[""],"name":["_rn_"],"type":[""],"align":["left"]},{"label":["PSIS"],"name":[1],"type":["dbl"],"align":["right"]},{"label":["SE"],"name":[2],"type":["dbl"],"align":["right"]},{"label":["dPSIS"],"name":[3],"type":["dbl"],"align":["right"]},{"label":["dSE"],"name":[4],"type":["dbl"],"align":["right"]},{"label":["pPSIS"],"name":[5],"type":["dbl"],"align":["right"]},{"label":["weight"],"name":[6],"type":["dbl"],"align":["right"]}],"data":[{"1":"402.7865","2":"11.306538","3":"0.0000000","4":"NA","5":"2.680983","6":"5.145423e-01","_rn_":"m6.8.2"},{"1":"402.9029","2":"11.322887","3":"0.1163708","4":"0.2768493","5":"2.714310","6":"4.854577e-01","_rn_":"m6.8.1"},{"1":"528.7964","2":"9.456506","3":"126.0098797","4":"13.2196533","5":"1.072331","6":"2.232150e-28","_rn_":"m6.8.3"}],"options":{"columns":{"min":{},"max":[10]},"rows":{"min":[10],"max":[10]},"pages":{}}}
+  </script>
+</div>
+<p>Validated!</p>
+</div>
+</div>
+<div id="exercise-5" class="section level5">
+<h5>Exercise 5</h5>
+<p>Provide an informal explanation of why informative priors reduce overfitting.</p>
+<hr />
+<p>Informative priors exclude impossible or improbable relationships between the response variable and the predictor(s). Therefore they are less likely to believe in outliers and to modify the fit accordingly.</p>
+<div id="exercise-6" class="section level6">
+<h6>Exercise 6</h6>
+<p>Provide an informal explanation of why overly informative priors result in underfitting.</p>
+<hr />
+<p>If the prior becomes too informative however, the posterior will be dominated by the prior and the likelihood won’t have that much of an influence. Therefore the resulting relationships will be overly biased according to the values on which the priors are centered.</p>
+</div>
+</div>
+</div>
+<div id="hard" class="section level4">
+<h4>Hard</h4>
+<div id="exercise-1-2" class="section level6">
+<h6>Exercise 1</h6>
 </div>
 </div>
 </div>
