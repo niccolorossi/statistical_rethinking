@@ -176,7 +176,356 @@ If the prior becomes too informative however, the posterior will be dominated by
 
 ###### Exercise 1
 
+In 2007, $\textit{The Wall Street Journal}$ published an editorial (“We’re Number One, Alas”) with a graph of corporate tax rates in 29 countries plotted against tax revenue. A badly fit curve was drawn in, seemingly by hand, to make the argument that the relationship between tax rate and tax revenue increases and then declines, such that higher tax rates can actually produce less tax revenue. I want you to actually fit a curve to these data, found in$\texttt{data(Laffer)}. Consider models that use tax rate to predict tax revenue. Compare, using WAIC or PSIS, a straight-line model to any curved models you like. What do you conclude about the relationship between tax rate and tax revenue?
+
+---
+
+```{r}
+data(Laffer)
+
+precis(Laffer)
+```
+
+Normalize tax rate (mean 0 and sd 1) and tax revenue (min 0, max 1):
+
+```{r}
+d <- list()
+d$rate <- (Laffer$tax_rate - mean(Laffer$tax_rate)) / sd(Laffer$tax_rate)
+d$revenue <- Laffer$tax_revenue / max(Laffer$tax_revenue)
+```
+
+Fit a linear model with noninformative priors:
+
+```{r}
+linear <- quap(alist(revenue ~ dnorm(mu, sigma), 
+                     mu <- a + b*rate, 
+                     a ~ dlnorm(0.5, 0.5), 
+                     b ~ dnorm(0, 0.5), 
+                     sigma ~ dexp(1)),
+               data=d) 
+
+precis(linear)
+```
+
+The linear model thinks it is plausible that a slight positive relationship exists. Fitting a quadratic model instead:
+
+```{r}
+quadratic <- quap(alist(revenue ~ dnorm(mu, sigma), 
+                     mu <- a + b1*rate + b2*rate**2, 
+                     a ~ dlnorm(0.5, 0.5), 
+                     b1 ~ dnorm(0, 0.5), 
+                     b2 ~ dnorm(0, 0.5), 
+                     sigma ~ dexp(1)),
+               data=d) 
+
+precis(quadratic)
+```
+
+Fitting a cubic model:
+
+```{r}
+cubic <- quap(alist(revenue ~ dnorm(mu, sigma), 
+                     mu <- a + b1*rate + b2*rate**2 + b3*rate**3, 
+                     a ~ dlnorm(0.5, 0.5), 
+                     b1 ~ dnorm(0, 0.5), 
+                     b2 ~ dnorm(0, 0.5), 
+                     b3 ~ dnorm(0, 0.5), 
+                     sigma ~ dexp(1)),
+               data=d) 
+
+precis(cubic)
+```
+
+These models seem to think that there is some curved relationships between the two variables. Plotting the predictions (mean and 89% confidence interal) it can be seen that such curves, although they are not as extreme as the one reported in the book, predict a negative relationship for high tax rates...
+
+```{r}
+xseq <- seq(from=min(d$rate)-0.15, to=max(d$rate)+0.15, length.out=50) 
+mu <- link(linear, data=list(rate=xseq))
+mu_mean <- apply(mu, 2, mean)
+mu_PI <- apply(mu, 2, PI)
+plot(revenue ~ rate, data=d) 
+lines(xseq, mu_mean, lwd=2) 
+shade(mu_PI, xseq)
+
+mu <- link(quadratic, data=list(rate=xseq))
+mu_mean <- apply(mu, 2, mean)
+mu_PI <- apply(mu, 2, PI)
+plot(revenue ~ rate, data=d) 
+lines(xseq, mu_mean, lwd=2) 
+shade(mu_PI, xseq)
+
+mu <- link(cubic, data=list(rate=xseq))
+mu_mean <- apply(mu, 2, mean)
+mu_PI <- apply(mu, 2, PI)
+plot(revenue ~ rate, data=d) 
+lines(xseq, mu_mean, lwd=2) 
+shade(mu_PI, xseq)
+```
+
+However:
+
+```{r}
+compare(linear, quadratic, cubic)
+plot(compare(linear, quadratic, cubic))
+```
+
+The cubic relationship receives a high WAIC penalty, which makes its score worse than the linear model's. Overall the best one is the quadratic model, which however does not show such a curvature for high rates. Although all these models are far from perfect is seems unlikely that the WSJ article is correct.
+
+##### Exercise 2
+
+In the $\texttt{Laffer}$ data, there is one country with a high tax revenue that is an outlier. Use PSIS and WAIC to measure the importance of this outlier in the models you fit in the previous problem. Then use robust regression with a Student’s t distribution to revisit the curve fitting problem. How much does a curved relationship depend upon the outlier point?
+
+---
 
 
+- Detect outlier for the three models:
+
+```{r}
+WAIC(linear, pointwise=TRUE)$WAIC 
+WAIC(quadratic, pointwise=TRUE)$WAIC
+WAIC(cubic, pointwise=TRUE)$WAIC
+
+WAIC(linear, pointwise=TRUE)$WAIC[12]
+WAIC(quadratic, pointwise=TRUE)$WAIC[12]
+WAIC(cubic, pointwise=TRUE)$WAIC[12]
+```
+
+Point 12 is an outlier...
+
+Trying "robust" regression:
+
+```{r}
+linear <- quap(alist(revenue ~ dstudent(2, mu, sigma), 
+                     mu <- a + b*rate, 
+                     a ~ dlnorm(0.5, 0.5), 
+                     b ~ dnorm(0, 0.5), 
+                     sigma ~ dexp(1)),
+               data=d) 
+
+precis(linear)
+
+quadratic <- quap(alist(revenue ~ dstudent(2, mu, sigma), 
+                     mu <- a + b1*rate + b2*rate**2, 
+                     a ~ dlnorm(0.5, 0.5), 
+                     b1 ~ dnorm(0, 0.5), 
+                     b2 ~ dnorm(0, 0.5), 
+                     sigma ~ dexp(1)),
+               data=d) 
+
+precis(quadratic)
+
+cubic <- quap(alist(revenue ~ dstudent(2, mu, sigma), 
+                     mu <- a + b1*rate + b2*rate**2 + b3*rate**3, 
+                     a ~ dlnorm(0.5, 0.5), 
+                     b1 ~ dnorm(0, 0.5), 
+                     b2 ~ dnorm(0, 0.5), 
+                     b3 ~ dnorm(0, 0.5), 
+                     sigma ~ dexp(1)),
+               data=d) 
+
+precis(cubic)
+```
 
 
+```{r}
+xseq <- seq(from=min(d$rate)-0.15, to=max(d$rate)+0.15, length.out=50) 
+mu <- link(linear, data=list(rate=xseq))
+mu_mean <- apply(mu, 2, mean)
+mu_PI <- apply(mu, 2, PI)
+plot(revenue ~ rate, data=d) 
+lines(xseq, mu_mean, lwd=2) 
+shade(mu_PI, xseq)
+
+mu <- link(quadratic, data=list(rate=xseq))
+mu_mean <- apply(mu, 2, mean)
+mu_PI <- apply(mu, 2, PI)
+plot(revenue ~ rate, data=d) 
+lines(xseq, mu_mean, lwd=2) 
+shade(mu_PI, xseq)
+
+mu <- link(cubic, data=list(rate=xseq))
+mu_mean <- apply(mu, 2, mean)
+mu_PI <- apply(mu, 2, PI)
+plot(revenue ~ rate, data=d) 
+lines(xseq, mu_mean, lwd=2) 
+shade(mu_PI, xseq)
+```
+
+The predictions are certainly less negative now: the outlier had lots of influence using normal distribution!
+
+##### Exercise 3
+
+Consider three fictional Polynesian islands. On each there is a Royal Ornithologist charged by the king with surveying the bird population. They have each found the following proportions of 5 important bird species:
+
+```{r}
+A <- c(0.2, 0.8, 0.05)
+B <- c(0.2, 0.1, 0.15)
+C <- c(0.2, 0.05, 0.7)
+D <- c(0.2, 0.025, 0.05)
+E <- c(0.2, 0.025, 0.05)
+
+df <- cbind(A, B, C, D, E)
+rownames(df) <- c("I1", "I2", "I3")
+
+df
+```
+
+Notice that each row sums to 1, all the birds. This problem has two parts. It is not computationally complicated. But it is conceptually tricky. First, compute the entropy of each island’s bird distribution. Interpret these entropy values. 
+
+```{r}
+I1_E <- sum(-df[1,]*log(df[1,]))
+I2_E <- sum(-df[2,]*log(df[2,]))
+I3_E <- sum(-df[3,]*log(df[3,]))
+
+I1_E
+I2_E
+I3_E
+
+# first island has the highest I.E. because there are uniform proportions, therefore the avg reduction in uncertainty is higher than in other cases
+```
+
+Second, use each island’s bird distribution to predict the other two. This means to compute the K-L Divergence of each island from the others, treating each island as if it were a statistical model of the other islands. You should end up with 6 different K-L Divergence values. Which island predicts the others best? Why?
+
+---
+
+First island predicting second, third
+
+```{r}
+sum(-df[2,]*log(df[1,]))
+sum(-df[3,]*log(df[1,]))
+```
+
+Second island predicting first, third
+
+```{r}
+sum(-df[1,]*log(df[2,]))
+sum(-df[3,]*log(df[2,]))
+```
+
+Third island predicting first, second
+
+```{r}
+sum(-df[1,]*log(df[3,]))
+sum(-df[2,]*log(df[3,]))
+```
+
+The first island is the best at predicting the others: in fact using its proportions you won't be surprised no matter which bird appears. Conversely, the second and the third island proportions do a worse job and they are particularly bad at predicting each other since they assign high probabilities to different species (A and C).
+
+##### Exercise 4
+
+Recall the marriage, age, and happiness collider bias example from Chapter 6. Run models $\texttt{m6.9}$ and $\texttt{m6.10}$ again. Compare these two models using WAIC (or LOO, they will produce identical results). Which model is expected to make better predictions? Which model provides the correct causal inference about the influence of age on happiness? Can you explain why the answers to these two questions disagree?
+
+---
+
+```{r}
+d <- sim_happiness(seed=1977, N_years=1000) 
+precis(d)
+
+d2 <- d[d$age>17,] # only adults 
+d2$A <- (d2$age - 18) / (65 - 18)
+
+d2$mid <- d2$married + 1 
+
+m6.9 <- quap(alist(happiness ~ dnorm(mu, sigma),
+                   mu <- a[mid] + bA*A,
+                   a[mid] ~ dnorm(0, 1),
+                   bA ~ dnorm(0, 2),
+                   sigma ~ dexp(1)),
+             data=d2) 
+precis(m6.9, depth=2)
+
+m6.10 <- quap(alist(happiness ~ dnorm(mu, sigma), 
+                    mu <- a + bA*A,
+                    a ~ dnorm(0, 1),
+                    bA ~ dnorm(0, 2),
+                    sigma ~ dexp(1)), 
+              data=d2)
+precis(m6.10)
+```
+
+```{r}
+compare(m6.9, m6.10)
+compare(m6.9, m6.10, func=PSIS)
+```
+
+$\texttt{m6.9}$ seems to work better although it gives the wrong inferential conclusions concerning the relationship among age and happiness. The idea is that knowing the marriage status of the individual helps in predicting happiness because married and unmarried persons at each age have different happiness distributions. Therefore it provides useful information for prediction (while age by itself is not informative by design) but it is not useful when it comes to establishing the causes of happiness.
+
+###### Exercise 5
+
+Revisit the urban fox data, $\texttt{data(foxes)}, from the previous chapter’s practice problems. Use WAIC or PSIS based model comparison on five different models, each using weight as the outcome, and containing these sets of predictor variables:
+
+1. avgfood + groupsize + area 
+2. avgfood + groupsize
+3. groupsize + area
+4. avgfood
+5. area
+
+Can you explain the relative differences in WAIC scores, using the fox DAG from last week’s homework? Be sure to pay attention to the standard error of the score differences (dSE).
+
+---
+
+```{r}
+data(foxes)
+
+precis(foxes)
+
+d <- list()
+d$W <- standardize(foxes$weight)
+d$A <- standardize(foxes$area)
+d$G <- standardize(foxes$groupsize)
+d$F <- standardize(foxes$avgfood)
+
+model_1 <- quap(alist(W ~ dnorm(mu, sigma),
+                     mu <- a + bF*F + bG*G+ bA*A, 
+                     a ~ dnorm(0, 0.2),
+                     bG ~ dnorm(0, 0.5),
+                     bF ~ dnorm(0, 0.5),
+                     bA ~ dnorm(0, 0.5),
+                     sigma ~ dexp(1)),
+               data = d)
+
+precis(model_1)
+
+model_2 <- quap(alist(W ~ dnorm(mu, sigma),
+                     mu <- a + bF*F + bG*G, 
+                     a ~ dnorm(0, 0.2),
+                     bF ~ dnorm(0, 0.5),
+                     bG ~ dnorm(0, 0.5),
+                     sigma ~ dexp(1)),
+               data = d)
+
+precis(model_2)
+
+model_3 <- quap(alist(W ~ dnorm(mu, sigma),
+                     mu <- a + bG*G+ bA*A, 
+                     a ~ dnorm(0, 0.2),
+                     bG ~ dnorm(0, 0.5),
+                     bA ~ dnorm(0, 0.5),
+                     sigma ~ dexp(1)),
+               data = d)
+
+precis(model_3)
+
+model_4 <- quap(alist(W ~ dnorm(mu, sigma),
+                     mu <- a + bF*F, 
+                     a ~ dnorm(0, 0.2),
+                     bF ~ dnorm(0, 0.5),
+                     sigma ~ dexp(1)),
+               data = d)
+
+precis(model_4)
+
+model_5 <- quap(alist(W ~ dnorm(mu, sigma),
+                     mu <- a + bA*A, 
+                     a ~ dnorm(0, 0.2),
+                     bA ~ dnorm(0, 0.5),
+                     sigma ~ dexp(1)),
+               data = d)
+
+precis(model_5)
+
+compare(model_1, model_2, model_3, model_4, model_5)
+compare(model_1, model_2, model_3, model_4, model_5, func=PSIS)
+```
+
+avgfood and area did not seem to be important predictors by themselves because their effect is masked. The situation improves by adding groupsize in models 2 and 3, with 3 performing slightly better. finally, the model 1 is the overall best as the separate positive causal effects of both area and avgfood are included.
